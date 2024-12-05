@@ -1,13 +1,2 @@
 https://sunny-strudel-053b28.netlify.app/
-_______________________________
-______@__@__________@__@
-____@______@______@______@___
-___@_________@__@_________@__
-___@___________@___________@__
-____@_____________________ @__
-_____@____________________@___
-______ @_________________@____
-________ @_____________@_______
-___________@________@_________
-_____________@____@___________
-________________@_____________
+<p align="left"> <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank" rel="noreferrer"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/javascript/javascript-original.svg" alt="javascript" width="40" height="40"/> </a> </p>
