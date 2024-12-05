@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sesli Metin Dönüştürme</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f4f4f9;
+      }
+      h1,
+      h2 {
+        color: #333;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 10px 5px;
+        cursor: pointer;
+        border-radius: 5px;
+        font-size: 16px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      textarea {
+        width: 100%;
+        max-width: 500px;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        font-size: 16px;
+      }
+      p {
+        font-size: 18px;
+        color: #555;
+      }
+      .border-box {
+        border: 2px dashed #4caf50;
+        padding: 10px;
+        margin-top: 10px;
+        display: inline-block;
+        width: 100%;
+        max-width: 500px;
+        background-color: #fff;
+      }
+      .container {
+        max-width: 800px;
+        margin: auto;
+        text-align: center;
+      }
+      canvas {
+        display: block;
+        margin: 20px auto;
+        border: 2px solid #4caf50;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Sesli Metin Dönüştürme Uygulaması</h1>
+
+      <!-- Konuşmayı metne dönüştürme düğmeleri -->
+      <h2>Konuşmayı Metne Dönüştür</h2>
+      <button id="start-btn">Kaydı Başlat</button>
+      <button id="stop-btn" disabled>Kaydı Durdur</button>
+      <div id="result-box" class="border-box">
+        <p id="result">Burada konuşmanızın metne dönüştürülmüş hali görünecek.</p>
+      </div>
+      <!-- Ses dalgası için canvas -->
+      <canvas id="audio-visualizer" width="800" height="300"></canvas>
+
+      <!-- Metni seslendirme -->
+      <h2>Metni Seslendirme</h2>
+      <br />
+      <button id="speak-btn">Metni Seslendir</button>
+      <button id="stop-speak-btn" disabled>Metni Sustur</button>
+    </div>
+
+    <script>
+      // Tarayıcıda SpeechRecognition API'sini kontrol ediyoruz
+      window.SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      // Ses dalgası görselleştirme için gerekli değişkenler
+      const canvas = document.getElementById("audio-visualizer");
+      const canvasCtx = canvas.getContext("2d");
+      let audioContext, analyser, microphone, animationFrameId;
+
+      // Ses dalgası görselleştirme işlevi
+      async function startVisualization() {
+        try {
+          // AudioContext oluştur ve mikrofon girişini al
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          microphone = audioContext.createMediaStreamSource(stream);
+
+          // AnalyserNode ile ses verisini analiz et
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 4096; // FFT boyutunu ayarla (daha hassas analiz için büyük bir değer)
+          analyser.smoothingTimeConstant = 0.85; // Geçişleri yumuşat
+
+          const bufferLength = analyser.frequencyBinCount; // Frekans verisi uzunluğu
+          const dataArray = new Uint8Array(bufferLength); // Frekans verisi için dizi oluştur
+
+          microphone.connect(analyser);
+
+          // Ses dalgasını canvas üzerine çiz
+          function draw() {
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Zaman alanı verisini al
+            analyser.getByteTimeDomainData(dataArray);
+
+            // Çizim ayarları
+            canvasCtx.lineWidth = 2;
+            canvasCtx.strokeStyle = "#4caf50";
+            canvasCtx.beginPath();
+
+            const sliceWidth = canvas.width / bufferLength; // Her veri noktası için yatay genişlik
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+              const v = dataArray[i] / 128.0; // Değeri normalize et
+              const y = (v * canvas.height) / 2; // Yükseklik değerini hesapla
+
+              if (i === 0) {
+                canvasCtx.moveTo(x, y);
+              } else {
+                canvasCtx.lineTo(x, y);
+              }
+
+              x += sliceWidth; // X ekseninde ilerle
+            }
+
+            canvasCtx.lineTo(canvas.width, canvas.height / 2);
+            canvasCtx.stroke();
+
+            // Çizimi tekrarla
+            animationFrameId = requestAnimationFrame(draw);
+          }
+
+          draw();
+        } catch (err) {
+          // Mikrofon izni reddedildiyse uyarı ver
+          alert("Mikrofona erişim izni verilmedi. Lütfen izin verin.");
+          console.error(err);
+        }
+      }
+
+      // Görselleştirmeyi durdurma işlevi
+      function stopVisualization() {
+        if (audioContext) {
+          audioContext.close(); // AudioContext'i kapat
+        }
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId); // Animasyonu durdur
+        }
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height); // Canvas'ı temizle
+      }
+
+      // Tarayıcıda SpeechRecognition API'si mevcut mu kontrol et
+      if ("SpeechRecognition" in window) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "tr-TR"; // Dil ayarı
+        recognition.maxAlternatives = 1;
+        recognition.interimResults = true;
+
+        // Düğmeler ve metin alanları
+        const startBtn = document.getElementById("start-btn");
+        const stopBtn = document.getElementById("stop-btn");
+        const resultPara = document.getElementById("result");
+
+        let transcriptText = "";
+        let isRecognizing = false;
+
+        // Tanıma sırasında sonuçları al
+        recognition.onresult = (event) => {
+          let interimTranscript = "";
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              transcriptText += transcript + " ";
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+          resultPara.textContent = transcriptText + interimTranscript; // Metni ekrana yaz
+        };
+
+        // Kayıt başlatıldığında
+        startBtn.addEventListener("click", () => {
+          transcriptText = ""; // Önceki metni sıfırla
+          isRecognizing = true;
+          recognition.start(); // Ses tanımayı başlat
+          startVisualization(); // Ses dalgası görselleştirmeyi başlat
+          alert("Kayıt başlatıldı.");
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+          resultPara.textContent = "Dinliyor... Lütfen konuşmaya başlayın.";
+        });
+
+        // Kayıt durdurulduğunda
+        stopBtn.addEventListener("click", () => {
+          isRecognizing = false;
+          recognition.stop(); // Ses tanımayı durdur
+          stopVisualization(); // Görselleştirmeyi durdur
+          alert("Kayıt durduruldu.");
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+        });
+
+        // Hataları yönet
+        recognition.onerror = (event) => {
+          if (event.error === "no-speech") {
+            recognition.start(); // Ses algılanmadıysa yeniden başlat
+          } else {
+            alert(`Hata oluştu: ${event.error}`);
+          }
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          isRecognizing = false;
+        };
+
+        // Tanıma sona erdiğinde
+        recognition.onend = () => {
+          if (isRecognizing) {
+            recognition.start(); // Tanımayı yeniden başlat
+          }
+        };
+      } else {
+        document.getElementById("result").textContent =
+          "Bu tarayıcıda ses tanıma desteklenmiyor.";
+      }
+
+      // Metni seslendirme işlemleri
+      const speakBtn = document.getElementById("speak-btn");
+      const stopSpeakBtn = document.getElementById("stop-speak-btn");
+      let utterance;
+      speakBtn.addEventListener("click", () => {
+        const text = document.getElementById("result").textContent.trim();
+
+        if (text) {
+          utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = "tr-TR";
+          window.speechSynthesis.speak(utterance);
+
+          speakBtn.disabled = true;
+          stopSpeakBtn.disabled = false;
+
+          utterance.onend = () => {
+            speakBtn.disabled = false;
+            stopSpeakBtn.disabled = true;
+          };
+
+          utterance.onerror = () => {
+            speakBtn.disabled = false;
+            stopSpeakBtn.disabled = true;
+          };
+        } else {
+          alert("Lütfen seslendirmek istediğiniz metni girin.");
+        }
+      });
+
+      stopSpeakBtn.addEventListener("click", () => {
+        window.speechSynthesis.cancel();
+        speakBtn.disabled = false;
+        stopSpeakBtn.disabled = true;
+        alert("Metin seslendirme durduruldu.");
+      });
+    </script>
+  </body>
+</html>
